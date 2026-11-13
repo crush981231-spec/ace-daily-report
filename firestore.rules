@@ -20,10 +20,10 @@ service cloud.firestore {
     match /dailyReports/{id} {
       // User-requested public reading: anyone, including signed-out visitors.
       allow read: if true;
-      allow create: if signedIn() && valid(request.resource.data) && request.resource.data.uid == request.auth.uid && request.resource.data.createdAt == request.time;
-      allow update: if signedIn() && (owner() || resource.data.uid == request.auth.uid)
-        && valid(request.resource.data) && request.resource.data.uid == resource.data.uid && request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if signedIn() && (owner() || resource.data.uid == request.auth.uid);
+      allow create: if valid(request.resource.data) && request.resource.data.uid == 'public' && request.resource.data.createdAt == request.time;
+      allow update: if valid(request.resource.data) && request.resource.data.uid == resource.data.uid && request.resource.data.createdAt == resource.data.createdAt;
+      // Deletion is administrator-only. Public editing does not grant deletion.
+      allow delete: if owner();
     }
     match /{document=**} { allow read, write: if false; }
   }
