@@ -25,6 +25,20 @@ service cloud.firestore {
       // Deletion is administrator-only. Public editing does not grant deletion.
       allow delete: if owner();
     }
+    match /reportApprovals/{reportId} {
+      function validApproval(d) {
+        return d.keys().hasAll(['reportId','status','reportUpdatedAt','approvedAt'])
+          && d.keys().hasOnly(['reportId','status','reportUpdatedAt','approvedAt'])
+          && d.reportId == reportId && d.status == 'approved'
+          && d.reportUpdatedAt is timestamp && d.approvedAt is timestamp
+          && d.approvedAt == request.time
+          && exists(/databases/$(database)/documents/dailyReports/$(reportId))
+          && d.reportUpdatedAt == get(/databases/$(database)/documents/dailyReports/$(reportId)).data.updatedAt;
+      }
+      allow read: if true;
+      allow create, update: if validApproval(request.resource.data);
+      allow delete: if owner();
+    }
     match /{document=**} { allow read, write: if false; }
   }
 }

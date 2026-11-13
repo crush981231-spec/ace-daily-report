@@ -65,7 +65,7 @@ function selectAuthor() {
 }
 const style = el('style');
 style.textContent = `
-.ace-shell{max-width:920px;margin:auto;padding:16px 24px 0}.ace-tabs,.ace-flex{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.ace-tabs{margin-top:14px;border-bottom:1px solid var(--line,#dce8e5);padding-bottom:10px}.ace-tabs button[aria-selected=true]{background:var(--teal,#087f78);border-color:var(--teal,#087f78);color:#fff}.ace-note{font-size:13px;color:var(--muted,#647b78);white-space:pre-wrap;overflow-wrap:anywhere}.ace-cloud{margin:18px 0;padding:17px;border:1px solid var(--line,#dce8e5);border-radius:9px;background:#fff}.ace-cloud h2{margin-bottom:10px}.ace-field{flex:1;min-width:145px;font-size:13px;margin:0}.ace-field select,.ace-field input{margin-top:5px;font-weight:400}.ace-pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0;font:inherit;line-height:1.8}.ace-item{padding:15px 0;border-bottom:1px solid var(--line,#dce8e5)}.ace-item:last-child{border-bottom:0}.ace-item h3{font-size:15px;margin:0}.ace-error{color:#a03535}button:disabled{opacity:.5;cursor:not-allowed}.ace-cloud details{font-size:13px}.ace-cloud dl{display:grid;grid-template-columns:65px 1fr;gap:5px 10px}.ace-cloud dt{font-weight:700}.ace-cloud dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}@media(max-width:600px){.ace-shell{padding:14px 17px 0}.ace-cloud{padding:13px}.ace-field{min-width:120px}.ace-flex{align-items:flex-end}}.ace-status-scroll{overflow-x:auto}.ace-status-table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}.ace-status-table caption{text-align:left;font-size:12px;color:var(--muted);padding:8px 0}.ace-status-table th,.ace-status-table td{text-align:left;padding:12px 9px;border-bottom:1px solid var(--line)}.ace-status-table th{background:#f3f8f6;font-weight:600}.ace-done{color:#087f78;background:#e8f5ef;border-radius:4px;padding:3px 7px}.ace-pending{color:#8b641b;background:#fff4dc;border-radius:4px;padding:3px 7px}@media print{.ace-shell,.ace-cloud{display:none!important}}
+.ace-shell{max-width:920px;margin:auto;padding:16px 24px 0}.ace-tabs,.ace-flex{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.ace-tabs{margin-top:14px;border-bottom:1px solid var(--line,#dce8e5);padding-bottom:10px}.ace-tabs button[aria-selected=true]{background:var(--teal,#087f78);border-color:var(--teal,#087f78);color:#fff}.ace-note{font-size:13px;color:var(--muted,#647b78);white-space:pre-wrap;overflow-wrap:anywhere}.ace-cloud{margin:18px 0;padding:17px;border:1px solid var(--line,#dce8e5);border-radius:9px;background:#fff}.ace-cloud h2{margin-bottom:10px}.ace-field{flex:1;min-width:145px;font-size:13px;margin:0}.ace-field select,.ace-field input{margin-top:5px;font-weight:400}.ace-pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0;font:inherit;line-height:1.8}.ace-item{padding:15px 0;border-bottom:1px solid var(--line,#dce8e5)}.ace-item:last-child{border-bottom:0}.ace-item h3{font-size:15px;margin:0}.ace-error{color:#a03535}button:disabled{opacity:.5;cursor:not-allowed}.ace-cloud details{font-size:13px}.ace-cloud dl{display:grid;grid-template-columns:65px 1fr;gap:5px 10px}.ace-cloud dt{font-weight:700}.ace-cloud dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}@media(max-width:600px){.ace-shell{padding:14px 17px 0}.ace-cloud{padding:13px}.ace-field{min-width:120px}.ace-flex{align-items:flex-end}}.ace-status-scroll{overflow-x:auto}.ace-status-table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}.ace-status-table caption{text-align:left;font-size:12px;color:var(--muted);padding:8px 0}.ace-status-table th,.ace-status-table td{text-align:left;padding:12px 9px;border-bottom:1px solid var(--line)}.ace-status-table th{background:#f3f8f6;font-weight:600}.ace-done{color:#087f78;background:#e8f5ef;border-radius:4px;padding:3px 7px}.ace-pending{color:#8b641b;background:#fff4dc;border-radius:4px;padding:3px 7px}.ace-status-table td>button[data-approval-id]{display:block;margin-top:6px}@media print{.ace-shell,.ace-cloud{display:none!important}}
 `;
 document.head.append(style);
 const shell = el('section', undefined, 'ace-shell');
@@ -125,7 +125,8 @@ form?.append(cloudDraftNote);
 let sdk, db;
 let cloudReady = false, submitting = false, querying = false;
 let querySerial = 0, statusSerial = 0, statusLoading = false, currentTab = 'write';
-let reportRows = [];
+let reportRows = [], reportApprovals = new Map();
+const approvingIds = new Set();
 const submittedIds = new Set();
 const canRead = () => cloudReady && !!db;
 function draftApi() {
@@ -168,6 +169,10 @@ function updateControls() {
     for (const option of author.options) option.disabled = false;
   }
   newButton.disabled = submitting;
+  for (const node of document.querySelectorAll('button[data-approval-id]')) {
+    node.disabled = !canRead() || approvingIds.has(node.dataset.approvalId);
+    node.textContent = approvingIds.has(node.dataset.approvalId) ? '승인 확인 중…' : '팀장 승인';
+  }
   writeTab.setAttribute('aria-selected', String(currentTab === 'write'));
   historyTab.setAttribute('aria-selected', String(currentTab === 'history'));
   statusTab.setAttribute('aria-selected', String(currentTab === 'status'));
@@ -245,10 +250,91 @@ async function submitReport(event) {
   }
 }
 function timestampText(value) {
-  try { const date = value?.toDate?.(); return date && Number.isFinite(date.getTime()) ? date.toLocaleString('ko-KR') : '시간 확인 불가'; }
+  try { const date = value?.toDate?.(); return date && Number.isFinite(date.getTime()) ? date.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '시간 확인 불가'; }
   catch (_) { return '시간 확인 불가'; }
 }
 function timeNumber(value) { try { return value?.toMillis?.() || 0; } catch (_) { return 0; } }
+// Millisecond-only values are intentionally not proof of an identical Firestore version.
+function validTimestamp(value) {
+  return !!value && Number.isInteger(value.seconds) && value.seconds >= -62135596800 && value.seconds <= 253402300799 &&
+    Number.isInteger(value.nanoseconds) && value.nanoseconds >= 0 && value.nanoseconds < 1000000000;
+}
+function sameTimestamp(a, b) {
+  return validTimestamp(a) && validTimestamp(b) && a.seconds === b.seconds && a.nanoseconds === b.nanoseconds;
+}
+export function isReportApproved(record, approval) {
+  return !!record && typeof record.id === 'string' && !!record.id && !!approval &&
+    approval.reportId === record.id && approval.status === 'approved' &&
+    sameTimestamp(record.updatedAt, approval.reportUpdatedAt) && validTimestamp(approval.approvedAt);
+}
+function approvalFor(approvals, id) {
+  return approvals instanceof Map ? approvals.get(id) : approvals?.[id];
+}
+async function loadApprovals(records) {
+  const ids = [...new Set(records.map(record => record.id))], approvals = new Map();
+  try {
+    const batches = [];
+    for (let index = 0; index < ids.length; index += 30) {
+      batches.push(sdk.getDocsFromServer(sdk.query(sdk.collection(db, 'reportApprovals'), sdk.where(sdk.documentId(), 'in', ids.slice(index, index + 30)))));
+    }
+    for (const response of await Promise.all(batches)) {
+      for (const document of response.docs) approvals.set(document.id, document.data());
+    }
+    return approvals;
+  } catch (error) {
+    throw Error('팀장 승인 상태를 서버에서 확인하지 못했습니다. 승인대기로 판정하지 않습니다. ' + message(error));
+  }
+}
+function approvalButton(record, output) {
+  const node = button('팀장 승인', () => approveReport(record, output));
+  node.dataset.approvalId = record.id;
+  node.disabled = !canRead() || approvingIds.has(record.id);
+  if (approvingIds.has(record.id)) node.textContent = '승인 확인 중…';
+  return node;
+}
+async function approveReport(displayed, output) {
+  if (approvingIds.has(displayed.id)) return;
+  if (!canRead()) { status(output, '서버 연결 후 다시 시도해 주세요.', true); return; }
+  if (!window.confirm(displayed.date + ' · ' + displayed.author + '\n현재 표시된 보고서 내용을 팀장 승인할까요?')) return;
+  approvingIds.add(displayed.id);
+  updateControls();
+  status(output, '팀장 승인 상태를 서버에서 확인하고 있습니다.');
+  let transactionFinished = false;
+  try {
+    const reportRef = sdk.doc(db, 'dailyReports', displayed.id);
+    const approvalRef = sdk.doc(db, 'reportApprovals', displayed.id);
+    const current = await sdk.runTransaction(db, async tx => {
+      // All reads precede writes, including the already-approved/idempotent path.
+      const reportSnapshot = await tx.get(reportRef);
+      const approvalSnapshot = await tx.get(approvalRef);
+      if (!reportSnapshot.exists()) throw Error('보고서가 더 이상 없습니다. 새로 조회해 주세요.');
+      const record = { ...reportSnapshot.data(), id: displayed.id };
+      if (!sameTimestamp(record.updatedAt, displayed.updatedAt)) throw Error('표시 이후 보고서가 수정되었거나 버전을 확인할 수 없습니다. 새로 조회한 내용을 확인한 뒤 승인해 주세요.');
+      if (!isReportApproved(record, approvalSnapshot.exists() ? approvalSnapshot.data() : null)) {
+        tx.set(approvalRef, {
+          reportId: displayed.id, status: 'approved', reportUpdatedAt: record.updatedAt, approvedAt: sdk.serverTimestamp()
+        });
+      }
+      return record;
+    });
+    transactionFinished = true;
+    const verified = await sdk.getDocFromServer(approvalRef);
+    const saved = verified.exists() ? verified.data() : null;
+    if (!isReportApproved(current, saved)) throw Error('서버 승인 문서의 보고서 ID, 버전 또는 승인시각이 일치하지 않습니다.');
+    status(output, '승인완료 · ' + timestampText(saved.approvedAt) + ' (한국시간)');
+    // Each view reads reports and approvals afresh; newer report versions remain pending.
+    await Promise.all([queryReports(), querySubmissionStatus()]);
+  } catch (error) {
+    // An uncertain write/read must never remain painted as a known pending/success state.
+    ++querySerial; ++statusSerial; querying = false; statusLoading = false;
+    reportRows = []; reportApprovals = new Map(); results.replaceChildren(); statusRows.replaceChildren();
+    const text = (transactionFinished ? '승인 처리 응답 후 서버 재확인 실패 · 승인완료로 표시하지 않습니다. ' : '승인 처리 확인 실패 · ') + message(error) + ' 보고서 원문은 유지됩니다. 조회 / 새로고침으로 현재 승인 저장 상태를 확인해 주세요.';
+    status(queryStatus, text, true); status(statusSummary, text, true);
+  } finally {
+    approvingIds.delete(displayed.id);
+    updateControls();
+  }
+}
 async function queryReports() {
   if (!canRead()) { status(queryStatus, '클라우드 연결이 준비되지 않았습니다. Firebase 설정과 네트워크를 확인해 주세요.', true); return; }
   const serial = ++querySerial, date = queryDate.value, author = queryAuthor.value;
@@ -271,7 +357,10 @@ async function queryReports() {
     const response = await sdk.getDocsFromServer(sdk.query(sdk.collection(db, 'dailyReports'), ...conditions));
     // Only a newer query invalidates this public response.
     if (serial !== querySerial || !canRead()) return;
-    reportRows = response.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+    const records = response.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+    const approvals = await loadApprovals(records);
+    if (serial !== querySerial || !canRead()) return;
+    reportRows = records; reportApprovals = approvals;
     reportRows.sort((a, b) => String(b.date).localeCompare(String(a.date)) || timeNumber(b.updatedAt) - timeNumber(a.updatedAt));
     const note = !date && !author ? '전체 날짜 중 보고일 기준 최신 최대 200건' : '선택한 날짜 / 작성자 조건';
     status(queryStatus, `서버 조회 완료 · ${reportRows.length}건 · ${note}${reportRows.length === maximum ? ' · 한도에 도달했습니다. 날짜나 작성자를 좁혀 주세요.' : ''}`);
@@ -281,31 +370,44 @@ async function queryReports() {
     if (serial === querySerial) { querying = false; renderResults(); updateControls(); }
   }
 }
-export function summarizeSubmissions(records) {
+export function summarizeSubmissions(records, approvals = new Map()) {
   return Object.entries(ROSTER).map(([author, role]) => {
     const own = records.filter(r => r.author === author);
     const created = own.map(r => timeNumber(r.createdAt)).filter(n => n > 0);
     const updated = own.map(r => timeNumber(r.updatedAt)).filter(n => n > 0);
-    return { author, role, count: own.length, first: created.length ? Math.min(...created) : null, latest: updated.length ? Math.max(...updated) : null };
+    const approved = own.filter(record => isReportApproved(record, approvalFor(approvals, record.id)));
+    const approvalTimes = approved.map(record => approvalFor(approvals, record.id).approvedAt);
+    const latestApproval = approvalTimes.reduce((latest, value) => !latest || value.seconds > latest.seconds || (value.seconds === latest.seconds && value.nanoseconds > latest.nanoseconds) ? value : latest, null);
+    return { author, role, count: own.length, first: created.length ? Math.min(...created) : null, latest: updated.length ? Math.max(...updated) : null, records: own, approvedCount: approved.length, latestApproval };
   });
 }
 function statusTime(milliseconds) {
   if (!milliseconds) return '확인 불가';
   return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(milliseconds));
 }
-function renderSubmissionStatus(records, selectedDate) {
-  const rows = summarizeSubmissions(records), completed = rows.filter(r => r.count > 0).length;
-  status(statusSummary, selectedDate + ' · 작성완료 ' + completed + '명 / 7명 · 미작성 ' + (7-completed) + '명');
+function renderSubmissionStatus(records, selectedDate, approvals) {
+  const rows = summarizeSubmissions(records, approvals), completed = rows.filter(r => r.count > 0).length;
+  const approvedCount = rows.reduce((total, row) => total + row.approvedCount, 0);
+  status(statusSummary, selectedDate + ' · 작성완료 ' + completed + '명 / 7명 · 미작성 ' + (7-completed) + '명 · 승인 ' + approvedCount + '/' + records.length + '건');
   const wrap = el('div', undefined, 'ace-status-scroll'), table = el('table', undefined, 'ace-status-table');
   const caption = el('caption', '보고일 기준 서버 제출 여부 · 시각은 한국시간');
   const thead = el('thead'), heading = el('tr');
-  for (const title of ['작성자', '상태', '최초 제출', '최근 수정', '보고서']) { const th = el('th', title); th.scope='col'; heading.append(th); }
+  for (const title of ['작성자', '상태', '최초 제출', '최근 수정', '팀장 승인', '승인시각', '보고서']) { const th = el('th', title); th.scope='col'; heading.append(th); }
   thead.append(heading); const tbody=el('tbody');
   for (const row of rows) {
     const tr=el('tr'); tr.append(el('td', row.author+' '+row.role));
     const state=el('td'), badge=el('span', row.count ? '작성완료' : '미작성', row.count ? 'ace-done' : 'ace-pending'); state.append(badge);
     if(row.count>1)state.append(el('small',' '+row.count+'건'));
     tr.append(state,el('td',row.count ? statusTime(row.first) : '—'),el('td',row.count ? statusTime(row.latest) : '—'));
+    const approvalState=el('td'), approvalTime=el('td');
+    if (row.count) {
+      const allApproved = row.approvedCount === row.count;
+      const label = allApproved ? '승인완료' : row.approvedCount ? '일부 승인 ' + row.approvedCount + '/' + row.count : '승인대기';
+      approvalState.append(el('span', label, allApproved ? 'ace-done' : 'ace-pending'));
+      if (row.count === 1 && !allApproved) approvalState.append(approvalButton(row.records[0], statusSummary));
+      approvalTime.textContent = row.latestApproval ? statusTime(timeNumber(row.latestApproval)) : '—';
+    } else { approvalState.textContent='—'; approvalTime.textContent='—'; }
+    tr.append(approvalState, approvalTime);
     const action=el('td');
     if(row.count)action.append(button('보기',()=>{queryDate.value=selectedDate;queryAuthor.value=row.author;switchTab('history')}));else action.textContent='—';
     tr.append(action);tbody.append(tr);
@@ -322,7 +424,10 @@ async function querySubmissionStatus() {
     // Read the complete selected day, not a limited result page or author-filtered subset.
     const response=await sdk.getDocsFromServer(sdk.query(sdk.collection(db,'dailyReports'),sdk.where('date','==',selectedDate)));
     if(serial!==statusSerial)return;
-    renderSubmissionStatus(response.docs.map(doc=>doc.data()),selectedDate);
+    const records=response.docs.map(doc=>({...doc.data(),id:doc.id}));
+    const approvals=await loadApprovals(records);
+    if(serial!==statusSerial || !canRead())return;
+    renderSubmissionStatus(records,selectedDate,approvals);
   } catch(error) {
     if(serial===statusSerial){statusRows.replaceChildren();status(statusSummary,'현황을 확인하지 못했습니다. 미작성으로 판정하지 않습니다. '+message(error),true);}
   } finally {
@@ -352,13 +457,17 @@ function renderReport(record) {
       $('who')?.focus();
     } catch (error) { status(queryStatus, message(error), true); }
   }));
+  const approval = reportApprovals.get(record.id), approved = isReportApproved(record, approval);
+  const approvalNote = el('p', approved ? '승인완료 · ' + timestampText(approval.approvedAt) + ' (한국시간)' : '승인대기', approved ? 'ace-note ace-done' : 'ace-note ace-pending');
+  approvalNote.setAttribute('role', 'status');
+  if (!approved) actions.append(approvalButton(record, approvalNote));
   head.append(actions);
   const details = el('details');
   details.append(el('summary', '육하원칙 / 결과 보기'));
   const dl = el('dl');
   for (const [key, label] of [['who', '누가'], ['when', '언제'], ['where', '어디서'], ['what', '무엇을'], ['how', '어떻게'], ['why', '왜'], ['outcome', '결과']]) dl.append(el('dt', label), el('dd', record[key] || ''));
   details.append(dl);
-  row.append(head, el('p', `최초 제출 ${timestampText(record.createdAt)} · 최종 수정 ${timestampText(record.updatedAt)}`, 'ace-note'), el('div', record.text || '', 'ace-pre'), details);
+  row.append(head, approvalNote, el('p', `최초 제출 ${timestampText(record.createdAt)} · 최종 수정 ${timestampText(record.updatedAt)}`, 'ace-note'), el('div', record.text || '', 'ace-pre'), details);
   return row;
 }
 if (form && submit) {
