@@ -65,22 +65,23 @@ function selectAuthor() {
 }
 const style = el('style');
 style.textContent = `
-.ace-shell{max-width:920px;margin:auto;padding:16px 24px 0}.ace-tabs,.ace-flex{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.ace-tabs{margin-top:14px;border-bottom:1px solid var(--line,#dce8e5);padding-bottom:10px}.ace-tabs button[aria-selected=true]{background:var(--teal,#087f78);border-color:var(--teal,#087f78);color:#fff}.ace-note{font-size:13px;color:var(--muted,#647b78);white-space:pre-wrap;overflow-wrap:anywhere}.ace-cloud{margin:18px 0;padding:17px;border:1px solid var(--line,#dce8e5);border-radius:9px;background:#fff}.ace-cloud h2{margin-bottom:10px}.ace-field{flex:1;min-width:145px;font-size:13px;margin:0}.ace-field select,.ace-field input{margin-top:5px;font-weight:400}.ace-pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0;font:inherit;line-height:1.8}.ace-item{padding:15px 0;border-bottom:1px solid var(--line,#dce8e5)}.ace-item:last-child{border-bottom:0}.ace-item h3{font-size:15px;margin:0}.ace-error{color:#a03535}button:disabled{opacity:.5;cursor:not-allowed}.ace-cloud details{font-size:13px}.ace-cloud dl{display:grid;grid-template-columns:65px 1fr;gap:5px 10px}.ace-cloud dt{font-weight:700}.ace-cloud dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}@media(max-width:600px){.ace-shell{padding:14px 17px 0}.ace-cloud{padding:13px}.ace-field{min-width:120px}.ace-flex{align-items:flex-end}}@media print{.ace-shell,.ace-cloud{display:none!important}}
+.ace-shell{max-width:920px;margin:auto;padding:16px 24px 0}.ace-tabs,.ace-flex{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.ace-tabs{margin-top:14px;border-bottom:1px solid var(--line,#dce8e5);padding-bottom:10px}.ace-tabs button[aria-selected=true]{background:var(--teal,#087f78);border-color:var(--teal,#087f78);color:#fff}.ace-note{font-size:13px;color:var(--muted,#647b78);white-space:pre-wrap;overflow-wrap:anywhere}.ace-cloud{margin:18px 0;padding:17px;border:1px solid var(--line,#dce8e5);border-radius:9px;background:#fff}.ace-cloud h2{margin-bottom:10px}.ace-field{flex:1;min-width:145px;font-size:13px;margin:0}.ace-field select,.ace-field input{margin-top:5px;font-weight:400}.ace-pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0;font:inherit;line-height:1.8}.ace-item{padding:15px 0;border-bottom:1px solid var(--line,#dce8e5)}.ace-item:last-child{border-bottom:0}.ace-item h3{font-size:15px;margin:0}.ace-error{color:#a03535}button:disabled{opacity:.5;cursor:not-allowed}.ace-cloud details{font-size:13px}.ace-cloud dl{display:grid;grid-template-columns:65px 1fr;gap:5px 10px}.ace-cloud dt{font-weight:700}.ace-cloud dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}@media(max-width:600px){.ace-shell{padding:14px 17px 0}.ace-cloud{padding:13px}.ace-field{min-width:120px}.ace-flex{align-items:flex-end}}.ace-status-scroll{overflow-x:auto}.ace-status-table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}.ace-status-table caption{text-align:left;font-size:12px;color:var(--muted);padding:8px 0}.ace-status-table th,.ace-status-table td{text-align:left;padding:12px 9px;border-bottom:1px solid var(--line)}.ace-status-table th{background:#f3f8f6;font-weight:600}.ace-done{color:#087f78;background:#e8f5ef;border-radius:4px;padding:3px 7px}.ace-pending{color:#8b641b;background:#fff4dc;border-radius:4px;padding:3px 7px}@media print{.ace-shell,.ace-cloud{display:none!important}}
 `;
 document.head.append(style);
 const shell = el('section', undefined, 'ace-shell');
 shell.setAttribute('aria-label', '공개 보고서 제출 / 수정 / 조회');
-const publicNotice = el('p', '로그인 없이 누구나 제출·수정·조회할 수 있습니다. 기밀·개인정보를 입력하지 마세요.', 'ace-note');
-const connectionStatus = el('p', '클라우드 연결 확인 중. 서버 제출은 아직 차단되어 있습니다.', 'ace-note');
+const connectionStatus = el('p', '', 'ace-note');
+connectionStatus.hidden = true;
 connectionStatus.setAttribute('role', 'status');
 connectionStatus.setAttribute('aria-live', 'polite');
 const tabs = el('div', undefined, 'ace-tabs');
 tabs.setAttribute('role', 'tablist');
 const writeTab = button('작성', () => switchTab('write'));
 const historyTab = button('제출내역', () => switchTab('history'));
-for (const tab of [writeTab, historyTab]) tab.setAttribute('role', 'tab');
-tabs.append(writeTab, historyTab);
-shell.append(publicNotice, connectionStatus, tabs);
+const statusTab = button('작성 현황', () => switchTab('status'));
+for (const tab of [writeTab, historyTab, statusTab]) tab.setAttribute('role', 'tab');
+tabs.append(writeTab, historyTab, statusTab);
+shell.append(connectionStatus, tabs);
 document.querySelector('header')?.after(shell);
 const queryPanel = el('section', undefined, 'ace-cloud');
 queryPanel.hidden = true;
@@ -101,13 +102,29 @@ const results = el('div');
 queryPanel.append(filters, queryStatus, results);
 if (form) form.after(queryPanel);
 else document.querySelector('main')?.append(queryPanel);
+const statusPanel = el('section', undefined, 'ace-cloud');
+statusPanel.hidden = true;
+statusPanel.setAttribute('aria-label', '날짜별 작성 현황');
+statusPanel.append(el('h2', '날짜별 작성 현황'));
+const statusFilters = el('div', undefined, 'ace-flex');
+const statusDate = el('input');
+statusDate.id = 'statusDate'; statusDate.type = 'date'; statusDate.min = '1900-01-01'; statusDate.max = '2199-12-31'; statusDate.value = localToday();
+const statusRefresh = button('조회 / 새로고침', querySubmissionStatus);
+statusRefresh.id = 'statusRefresh';
+statusFilters.append(field('보고일', statusDate), statusRefresh);
+const statusSummary = el('p', '날짜를 선택해 작성 여부를 확인하세요.', 'ace-note');
+statusSummary.setAttribute('role', 'status');
+const statusRows = el('div');
+statusPanel.append(statusFilters, statusSummary, statusRows);
+queryPanel.after(statusPanel);
+statusDate.addEventListener('change', querySubmissionStatus);
 const newButton = button('새 보고서', newReport, '');
 form?.querySelector('.actions')?.append(newButton);
-const cloudDraftNote = el('p', '기기 자동 저장과 서버 제출은 별개입니다. 제출한 보고서는 누구나 볼 수 있습니다.', 'ace-note');
+const cloudDraftNote = el('p', '제출한 보고서는 제출내역에서 확인할 수 있습니다.', 'ace-note');
 form?.append(cloudDraftNote);
 let sdk, db;
 let cloudReady = false, submitting = false, querying = false;
-let querySerial = 0, currentTab = 'write';
+let querySerial = 0, statusSerial = 0, statusLoading = false, currentTab = 'write';
 let reportRows = [];
 const submittedIds = new Set();
 const canRead = () => cloudReady && !!db;
@@ -119,6 +136,7 @@ function draftApi() {
 function status(node, text, error = false) {
   node.textContent = text;
   node.classList.toggle('ace-error', error);
+  if (node === connectionStatus) node.hidden = !error;
 }
 function message(error) {
   const code = String(error?.code || '').replace(/^firestore\//, '');
@@ -136,11 +154,12 @@ function message(error) {
 function updateControls() {
   historyTab.disabled = false;
   searchButton.disabled = !canRead() || querying;
+  statusRefresh.disabled = !canRead() || statusLoading;
   if (submit) {
     let apiReady = false, saved = false;
     try { saved = submittedIds.has(draftApi().getDraft().id); apiReady = true; } catch (_) { /* public browsing still works */ }
     submit.disabled = !canRead() || !apiReady || submitting;
-    submit.textContent = submitting ? '서버 확인 중…' : saved ? '수정 제출' : '공개 제출';
+    submit.textContent = submitting ? '서버 확인 중…' : saved ? '수정 제출' : '보고서 제출';
   }
   // Every visitor can choose any roster name without changing the current draft.
   const author = $('author');
@@ -151,10 +170,12 @@ function updateControls() {
   newButton.disabled = submitting;
   writeTab.setAttribute('aria-selected', String(currentTab === 'write'));
   historyTab.setAttribute('aria-selected', String(currentTab === 'history'));
+  statusTab.setAttribute('aria-selected', String(currentTab === 'status'));
   if (form) form.hidden = currentTab !== 'write';
   queryPanel.hidden = currentTab !== 'history';
+  statusPanel.hidden = currentTab !== 'status';
   const previousLocalArchive = document.querySelector('.archive');
-  if (previousLocalArchive) previousLocalArchive.hidden = currentTab === 'history';
+  if (previousLocalArchive) previousLocalArchive.hidden = currentTab !== 'write';
 }
 function renderResults() {
   results.replaceChildren();
@@ -165,6 +186,7 @@ function switchTab(next) {
   currentTab = next;
   updateControls();
   if (next === 'history') void queryReports();
+  if (next === 'status') void querySubmissionStatus();
 }
 function newReport() {
   if (submitting) return;
@@ -173,7 +195,7 @@ function newReport() {
     if ([...CORE, 'outcome', 'text'].some(key => String(old[key] || '').trim()) && !window.confirm('새 보고서를 작성할까요? 현재 작성 중 내용은 바뀝니다.')) return;
     api.reset();
     if ($('status')) $('status').textContent = '새 보고서입니다. 아직 서버에 제출되지 않았습니다.';
-    cloudDraftNote.textContent = '기기 자동 저장과 서버 제출은 별개입니다. 제출한 보고서는 누구나 볼 수 있습니다.';
+    cloudDraftNote.textContent = '제출한 보고서는 제출내역에서 확인할 수 있습니다.';
     updateControls();
     $('who')?.focus();
   } catch (error) { if ($('status')) $('status').textContent = message(error); }
@@ -214,6 +236,7 @@ async function submitReport(event) {
     // Do not replace the local draft after asynchronous writes.
     cloudDraftNote.textContent = `최근 서버 확인: ${content.date} ${content.author} · ID ${draft.id}. 이후 변경한 내용은 별도로 제출해야 반영됩니다.`;
     if (currentTab === 'history') void queryReports();
+    if (currentTab === 'status') void querySubmissionStatus();
   } catch (error) {
     status(output, (committed ? '서버 쓰기 응답 후 재확인에 실패했습니다. 같은 ID로 다시 제출하거나 제출내역을 조회해 주세요. ' : '제출 실패 · 작성 중 내용은 유지됩니다. ') + message(error), true);
   } finally {
@@ -256,6 +279,54 @@ async function queryReports() {
     if (serial === querySerial) { reportRows = []; status(queryStatus, '공개 조회 실패 · ' + message(error), true); }
   } finally {
     if (serial === querySerial) { querying = false; renderResults(); updateControls(); }
+  }
+}
+export function summarizeSubmissions(records) {
+  return Object.entries(ROSTER).map(([author, role]) => {
+    const own = records.filter(r => r.author === author);
+    const created = own.map(r => timeNumber(r.createdAt)).filter(n => n > 0);
+    const updated = own.map(r => timeNumber(r.updatedAt)).filter(n => n > 0);
+    return { author, role, count: own.length, first: created.length ? Math.min(...created) : null, latest: updated.length ? Math.max(...updated) : null };
+  });
+}
+function statusTime(milliseconds) {
+  if (!milliseconds) return '확인 불가';
+  return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(milliseconds));
+}
+function renderSubmissionStatus(records, selectedDate) {
+  const rows = summarizeSubmissions(records), completed = rows.filter(r => r.count > 0).length;
+  status(statusSummary, selectedDate + ' · 작성완료 ' + completed + '명 / 7명 · 미작성 ' + (7-completed) + '명');
+  const wrap = el('div', undefined, 'ace-status-scroll'), table = el('table', undefined, 'ace-status-table');
+  const caption = el('caption', '보고일 기준 서버 제출 여부 · 시각은 한국시간');
+  const thead = el('thead'), heading = el('tr');
+  for (const title of ['작성자', '상태', '최초 제출', '최근 수정', '보고서']) { const th = el('th', title); th.scope='col'; heading.append(th); }
+  thead.append(heading); const tbody=el('tbody');
+  for (const row of rows) {
+    const tr=el('tr'); tr.append(el('td', row.author+' '+row.role));
+    const state=el('td'), badge=el('span', row.count ? '작성완료' : '미작성', row.count ? 'ace-done' : 'ace-pending'); state.append(badge);
+    if(row.count>1)state.append(el('small',' '+row.count+'건'));
+    tr.append(state,el('td',row.count ? statusTime(row.first) : '—'),el('td',row.count ? statusTime(row.latest) : '—'));
+    const action=el('td');
+    if(row.count)action.append(button('보기',()=>{queryDate.value=selectedDate;queryAuthor.value=row.author;switchTab('history')}));else action.textContent='—';
+    tr.append(action);tbody.append(tr);
+  }
+  table.append(caption,thead,tbody);wrap.append(table);statusRows.replaceChildren(wrap);
+}
+async function querySubmissionStatus() {
+  const serial=++statusSerial,selectedDate=statusDate.value;
+  statusRows.replaceChildren();statusLoading=false;updateControls();
+  if(!validReportDate(selectedDate)){status(statusSummary,'올바른 보고일을 선택해 주세요.',true);return;}
+  if(!canRead()){status(statusSummary,'서버 연결 후 현황을 확인할 수 있습니다.',true);return;}
+  statusLoading=true;updateControls();status(statusSummary,'작성 현황을 확인하고 있습니다.');
+  try {
+    // Read the complete selected day, not a limited result page or author-filtered subset.
+    const response=await sdk.getDocsFromServer(sdk.query(sdk.collection(db,'dailyReports'),sdk.where('date','==',selectedDate)));
+    if(serial!==statusSerial)return;
+    renderSubmissionStatus(response.docs.map(doc=>doc.data()),selectedDate);
+  } catch(error) {
+    if(serial===statusSerial){statusRows.replaceChildren();status(statusSummary,'현황을 확인하지 못했습니다. 미작성으로 판정하지 않습니다. '+message(error),true);}
+  } finally {
+    if(serial===statusSerial){statusLoading=false;updateControls();}
   }
 }
 function renderReport(record) {
@@ -314,9 +385,10 @@ async function boot() {
     const app = existing || appSdk.initializeApp(config, appName);
     db = sdk.getFirestore(app);
     cloudReady = true;
-    status(connectionStatus, '클라우드 연결 완료 · 로그인 없이 누구나 제출·수정·조회할 수 있습니다.');
+    status(connectionStatus, '');
     updateControls();
     if (currentTab === 'history') void queryReports();
+    if (currentTab === 'status') void querySubmissionStatus();
   } catch (error) {
     cloudReady = false;
     status(connectionStatus, '클라우드 연결 차단 · ' + message(error), true);
