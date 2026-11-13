@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null && request.auth.token.email_verified == true && request.auth.token.firebase.sign_in_provider == 'google.com'; }
+    function owner() { return signedIn() && request.auth.token.email == 'crush981231@gmail.com'; }
+    function roster(a) { return a in ['남종현','김요한','김상현','김민구','조병주','이재웅','이수진']; }
+    function rank(a) { return a in ['남종현','김요한','김상현'] ? '과장' : (a in ['김민구','조병주'] ? '대리' : '주임'); }
+    function text(v,n) { return v is string && v.size() <= n; }
+    function required(v,n) { return text(v,n) && v.size() > 0; }
+    function valid(d) {
+      return d.keys().hasAll(['schemaVersion','uid','author','role','date','who','when','where','what','how','why','outcome','text','createdAt','updatedAt'])
+        && d.keys().hasOnly(['schemaVersion','uid','author','role','date','who','when','where','what','how','why','outcome','text','createdAt','updatedAt'])
+        && d.schemaVersion == 1 && required(d.uid,128) && roster(d.author) && d.role == rank(d.author)
+        && d.date is string && d.date.matches('(19|20|21)[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])')
+        && required(d.who,1500) && required(d.when,1500) && required(d.where,1500)
+        && required(d.what,1500) && required(d.how,1500) && required(d.why,1500)
+        && text(d.outcome,1500) && required(d.text,16000)
+        && d.createdAt is timestamp && d.updatedAt is timestamp && d.updatedAt == request.time && d.createdAt <= d.updatedAt;
+    }
+    match /dailyReports/{id} {
+      // User-requested public reading: anyone, including signed-out visitors.
+      allow read: if true;
+      allow create: if signedIn() && valid(request.resource.data) && request.resource.data.uid == request.auth.uid && request.resource.data.createdAt == request.time;
+      allow update: if signedIn() && (owner() || resource.data.uid == request.auth.uid)
+        && valid(request.resource.data) && request.resource.data.uid == resource.data.uid && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if signedIn() && (owner() || resource.data.uid == request.auth.uid);
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
